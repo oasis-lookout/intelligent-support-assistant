@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "intelligent-support-assistant"
+version = "0.1.0"
+description = "RAG-based assistant for financial-services customer support (AWS-managed and self-hosted deployments)"
+requires-python = ">=3.11"
+dependencies = ["numpy>=1.26"]
+
+[project.optional-dependencies]
+api = ["fastapi>=0.110", "uvicorn[standard]>=0.29"]
+aws = ["boto3>=1.34"]
+qdrant = ["qdrant-client>=1.10"]
+mysql = ["pymysql>=1.1", "cryptography>=42"]
+all = ["intelligent-support-assistant[api,aws,qdrant,mysql]"]
+
+[project.scripts]
+sa-ingest = "support_assistant.cli.ingest:main"
+sa-keys = "support_assistant.cli.keys:main"
+sa-chat = "support_assistant.cli.chat:main"
+sa-eval = "support_assistant.cli.evaluate:main"
+sa-loadtest = "support_assistant.cli.loadtest:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

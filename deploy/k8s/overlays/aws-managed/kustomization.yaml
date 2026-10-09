@@ -1,0 +1,26 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+  - ingress.yaml
+patches:
+  - target: {kind: ConfigMap, name: support-assistant-config}
+    patch: |-
+      - op: replace
+        path: /data/DEPLOYMENT_MODE
+        value: aws
+      - op: add
+        path: /data/AWS_REGION
+        value: ap-south-1
+      - op: add
+        path: /data/BEDROCK_EMBED_MODEL_ID
+        value: amazon.titan-embed-text-v2:0
+      - op: add
+        path: /data/BEDROCK_LLM_MODEL_ID
+        value: REPLACE_ME            # a Bedrock model enabled in your account/region
+  - target: {kind: ServiceAccount, name: support-assistant}
+    patch: |-
+      - op: add
+        path: /metadata/annotations
+        value:
+          eks.amazonaws.com/role-arn: arn:aws:iam::<ACCOUNT_ID>:role/support-assistant-irsa   # policy: deploy/iam/bedrock-s3-policy.json

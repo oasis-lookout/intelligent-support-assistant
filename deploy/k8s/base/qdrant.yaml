@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: qdrant
+  namespace: support-assistant
+spec:
+  serviceName: qdrant
+  replicas: 1
+  selector:
+    matchLabels: {app: qdrant}
+  template:
+    metadata:
+      labels: {app: qdrant}
+    spec:
+      containers:
+        - name: qdrant
+          image: qdrant/qdrant:latest      # pin a version for real deployments
+          ports: [{containerPort: 6333}, {containerPort: 6334}]
+          volumeMounts: [{name: data, mountPath: /qdrant/storage}]
+          resources: {requests: {cpu: 500m, memory: 1Gi}, limits: {memory: 2Gi}}
+  volumeClaimTemplates:
+    - metadata: {name: data}
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources: {requests: {storage: 20Gi}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: qdrant
+  namespace: support-assistant
+spec:
+  clusterIP: None
+  selector: {app: qdrant}
+  ports: [{name: http, port: 6333}, {name: grpc, port: 6334}]
+---
+# Only the API and ingestion pods may reach Qdrant.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: qdrant-allow-app-only
+  namespace: support-assistant
+spec:
+  podSelector: {matchLabels: {app: qdrant}}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector: {matchLabels: {app: support-api}}
+        - podSelector: {matchLabels: {app: support-ingest}}

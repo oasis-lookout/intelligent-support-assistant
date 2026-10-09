@@ -1,0 +1,35 @@
+# GPU node group required (e.g. g5/g6 instances + NVIDIA device plugin). Embeddings use a second vLLM instance
+# (`--task embed`) or any OpenAI-compatible embedding server; adjust OPENAI_BASE_URL/EMBED_MODEL accordingly.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm
+  namespace: support-assistant
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {app: vllm}
+  template:
+    metadata:
+      labels: {app: vllm}
+    spec:
+      containers:
+        - name: vllm
+          image: vllm/vllm-openai:latest          # pin a version
+          args: ["--model", "REPLACE_ME", "--max-model-len", "8192"]
+          ports: [{containerPort: 8000}]
+          resources: {limits: {nvidia.com/gpu: 1}}
+          volumeMounts: [{name: shm, mountPath: /dev/shm}]
+      volumes:
+        - name: shm
+          emptyDir: {medium: Memory, sizeLimit: 2Gi}
+      tolerations: [{key: nvidia.com/gpu, operator: Exists, effect: NoSchedule}]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm
+  namespace: support-assistant
+spec:
+  selector: {app: vllm}
+  ports: [{port: 8000, targetPort: 8000}]

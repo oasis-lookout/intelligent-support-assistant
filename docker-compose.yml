@@ -1,0 +1,66 @@
+# Local full-stack: API + Qdrant + MySQL.  Providers default to the offline ones, so no AWS account is needed.
+#   docker compose up --build -d
+#   docker compose run --rm tools sa-ingest --source data/support_tickets_1000.csv
+#   docker compose run --rm tools sa-keys --tenant CMP-101 --role customer
+# Self-hosted LLM (needs an NVIDIA GPU):  docker compose --profile selfhosted up -d   (+ set DEPLOYMENT_MODE=selfhosted)
+x-app-env: &app-env
+  DEPLOYMENT_MODE: ${DEPLOYMENT_MODE:-local}
+  VECTOR_STORE: qdrant
+  QDRANT_URL: http://qdrant:6333
+  DATABASE_URL: mysql://support:support@mysql:3306/support
+  API_KEYS_FILE: /app/var/api_keys.json
+  SESSION_SECRET: ${SESSION_SECRET:-dev-only-secret-change-me-please-0123456789}
+  OPENAI_BASE_URL: http://vllm:8000/v1
+  LLM_MODEL: ${LLM_MODEL:-}
+  EMBED_MODEL: ${EMBED_MODEL:-BAAI/bge-m3}
+  AWS_REGION: ${AWS_REGION:-ap-south-1}
+  BEDROCK_LLM_MODEL_ID: ${BEDROCK_LLM_MODEL_ID:-}
+
+services:
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports: ["6333:6333"]
+    volumes: [qdrant_data:/qdrant/storage]
+
+  mysql:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: support
+      MYSQL_USER: support
+      MYSQL_PASSWORD: support
+      MYSQL_ROOT_PASSWORD: root
+    volumes: [mysql_data:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-psupport", "-usupport"]
+      interval: 5s
+      retries: 20
+
+  api:
+    build: .
+    environment: *app-env
+    ports: ["8080:8080"]
+    volumes: ["./var:/app/var"]
+    depends_on:
+      mysql: {condition: service_healthy}
+      qdrant: {condition: service_started}
+
+  tools:                       # one-off commands: ingest, keys, eval
+    build: .
+    profiles: ["tools"]
+    environment: *app-env
+    volumes: ["./var:/app/var", "./reports:/app/reports"]
+    depends_on: [qdrant]
+
+  vllm:                        # self-hosted generation + embeddings (OpenAI-compatible)
+    image: vllm/vllm-openai:latest
+    profiles: ["selfhosted"]
+    command: ["--model", "${LLM_MODEL:?set LLM_MODEL}", "--max-model-len", "8192"]
+    ports: ["8000:8000"]
+    deploy:
+      resources:
+        reservations:
+          devices: [{driver: nvidia, count: 1, capabilities: [gpu]}]
+
+volumes:
+  qdrant_data:
+  mysql_data:

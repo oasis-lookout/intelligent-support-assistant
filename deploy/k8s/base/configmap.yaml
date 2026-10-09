@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: support-assistant-config
+  namespace: support-assistant
+data:
+  APP_ENV: "prod"
+  DEPLOYMENT_MODE: "local"            # overridden by overlays
+  VECTOR_STORE: "qdrant"
+  QDRANT_URL: "http://qdrant.support-assistant.svc:6333"
+  QDRANT_COLLECTION: "support_chunks"
+  API_KEYS_FILE: "/etc/support/keys/api_keys.json"
+  RETRIEVAL_TOP_K: "8"
+  CONTEXT_K: "3"
+  LOG_LEVEL: "INFO"

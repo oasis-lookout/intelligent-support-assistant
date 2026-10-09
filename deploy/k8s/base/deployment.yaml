@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: support-api
+  namespace: support-assistant
+spec:
+  replicas: 2
+  selector:
+    matchLabels: {app: support-api}
+  template:
+    metadata:
+      labels: {app: support-api}
+    spec:
+      serviceAccountName: support-assistant
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, seccompProfile: {type: RuntimeDefault}}
+      containers:
+        - name: api
+          image: REPLACE_ME/support-assistant:0.1.0     # push the Dockerfile image to ECR and set it here
+          ports: [{containerPort: 8080}]
+          envFrom:
+            - configMapRef: {name: support-assistant-config}
+          env:
+            - name: SESSION_SECRET
+              valueFrom: {secretKeyRef: {name: support-assistant-secrets, key: SESSION_SECRET}}
+            - name: DATABASE_URL
+              valueFrom: {secretKeyRef: {name: support-assistant-secrets, key: DATABASE_URL}}
+          volumeMounts:
+            - {name: api-keys, mountPath: /etc/support/keys, readOnly: true}
+          readinessProbe: {httpGet: {path: /readyz, port: 8080}, periodSeconds: 10, failureThreshold: 3}
+          livenessProbe: {httpGet: {path: /healthz, port: 8080}, periodSeconds: 20}
+          resources:
+            requests: {cpu: 250m, memory: 384Mi}
+            limits: {cpu: "1", memory: 1Gi}
+          securityContext: {allowPrivilegeEscalation: false, readOnlyRootFilesystem: true, capabilities: {drop: [ALL]}}
+      volumes:
+        - name: api-keys
+          secret:
+            secretName: support-assistant-secrets
+            items: [{key: api_keys.json, path: api_keys.json}]

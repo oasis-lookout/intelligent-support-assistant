@@ -1,0 +1,24 @@
+# Offline ingestion path. Run after uploading tickets to S3 (aws-managed) or baking/mounting the CSV (self-hosted):
+#   kubectl apply -k deploy/k8s/overlays/aws-managed && kubectl apply -f deploy/k8s/jobs/ingest-job.yaml
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: support-ingest
+  namespace: support-assistant
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels: {app: support-ingest}
+    spec:
+      restartPolicy: Never
+      serviceAccountName: support-assistant
+      containers:
+        - name: ingest
+          image: REPLACE_ME/support-assistant:0.1.0
+          command: ["sa-ingest", "--source", "s3://<BUCKET>/tickets/support_tickets.csv"]   # or data/support_tickets_1000.csv
+          envFrom: [{configMapRef: {name: support-assistant-config}}]
+          env:
+            - name: SESSION_SECRET
+              valueFrom: {secretKeyRef: {name: support-assistant-secrets, key: SESSION_SECRET}}
